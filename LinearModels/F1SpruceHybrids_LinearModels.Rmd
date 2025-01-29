@@ -1,0 +1,215 @@
+---
+title: "F1SpruceHybrids_LinearModels"
+author: "EdouardRM"
+date: "2025-01-25"
+output: html_document
+---
+
+### Introduction
+
+# This script is associated with the article
+# "Spruce hybrids show superior growth and intermediate response to climate variations compared to their ecologically divergent parental species"
+# And runs linear mixed models with the software package ASREML-R
+
+# Authors : Edouard Reed-Metayer, Claire Depardieu, Patrick Lenz, Jean Bousquet, Martin Perron
+
+
+# General : Set working directory, etc
+```{r}
+setwd(path/to/your/data)
+getwd()
+```
+
+# General : Load libraries needed
+
+```{r}
+library(asreml)
+library(tidyverse)
+#library(car)
+library(biometryassist)
+library(readxl)
+library(dplyr)
+```
+
+
+## 1. The first part of this script is a sample of the repeated measures analysis of growth and wood anatomy yearly measurements (principal results in table 2 of the above cited article)
+
+# 1.1. Reading the data file
+
+```{r}
+data.phenotype.final <- read.csv("sample.phenotype.data.repeated.csv")
+```
+
+# Description of the variables
+# sample_id : ID of the sample (of the tree)
+# taxa : taxonomic group (referred to as "group" in the article); EPN for black spruce, EPR for red spruce, EPNxEPR for black x red spruce F1 hybrids and EPRxEPN for red x black spruce F1 hybrids
+# NO_ORIGI : ID of the family
+# NO_BLOC : Experimental block number
+# ring_year : year of the tree ring
+# ew_width, lw_width : earlywood and latewood width respectively (mm)
+# lw_percentage : latewood percentage
+# BAI, BAI_Ew, BAI_Lw : Basal area increment of the whole ring, of the earlywood, and of the latewood respectively
+# avg_density, ew_avg_density, lw_avg_density : average wood density of the whole ring, of the earlywood, and of the latewood respectively
+# period : period of the timespan, with two possibilities, "early" (up to 2010) or "late" (after 2010)
+
+
+# 1.2. Setting variables in appropriate data type if needed and creating relevant interactions
+
+```{r}
+data.phenotype.final$NO_ORIGI<-as.factor(data.phenotype.final$NO_ORIGI)
+data.phenotype.final$taxa<-as.factor(data.phenotype.final$taxa)
+data.phenotype.final$yearf<-as.factor(data.phenotype.final$ring_year)   # Year as a factor
+data.phenotype.final$sample_id<-as.factor(data.phenotype.final$sample_id)
+data.phenotype.final$NO_BLOC<-as.factor(data.phenotype.final$NO_BLOC)
+data.phenotype.final = data.phenotype.final[order(data.phenotype.final$sample_id, data.phenotype.final$ring_year),]
+
+# Creating the interaction variable between taxa and period
+data.phenotype.final <- transform(data.phenotype.final, taxa_period = factor(taxa:period))
+```
+
+# 1.3. Creating transformed variables according to preliminary data testing (transformations for statistical assumptions (normality of residuals, etc.), when needed)
+
+```{r}
+# For example, applying a square root transformation to BAI
+data.phenotype.final$sqrt_BAI <- sqrt(data.phenotype.final$BAI)
+```
+
+
+
+# 1.4. Running the models
+# As an example here, using the variable BAI, but this existing structure could be customized to run through a loop as well if you want to run multiple traits at once
+
+```{r}
+j <- sqrt_BAI
+  
+print(paste0(j))
+  
+
+# Running the full model and reduced models 
+  
+model_total<-asreml(fixed=get(j)~ taxa + period + taxa_period + taxa:NO_ORIGI + period:(taxa:NO_ORIGI),
+                          random=~ period:yearf + NO_BLOC + yearf:NO_BLOC + taxa:yearf + (taxa:NO_ORIGI):yearf,
+                          residual=~sample_id:ar1h(yearf),
+                          data=data.phenotype.final, maxiter = 100, workspace = "1000mb")
+  
+model_red_yearf<-asreml(fixed=get(j)~ taxa + period + taxa_period + taxa:NO_ORIGI + period:(taxa:NO_ORIGI),
+                      random=~ NO_BLOC + yearf:NO_BLOC + taxa:yearf + (taxa:NO_ORIGI):yearf,
+                      residual=~sample_id:ar1h(yearf),
+                      data=data.phenotype.final, maxiter = 100, workspace = "1000mb")
+  
+model_red_bloc<-asreml(fixed=get(j)~ taxa + period + taxa_period + taxa:NO_ORIGI + period:(taxa:NO_ORIGI),
+                      random=~ period:yearf + yearf:NO_BLOC + taxa:yearf + (taxa:NO_ORIGI):yearf,
+                      residual=~sample_id:ar1h(yearf),
+                      data=data.phenotype.final, maxiter = 100, workspace = "1000mb")
+  
+model_red_yearbloc<-asreml(fixed=get(j)~ taxa + period + taxa_period + taxa:NO_ORIGI + period:(taxa:NO_ORIGI),
+                      random=~ period:yearf + NO_BLOC + taxa:yearf + (taxa:NO_ORIGI):yearf,
+                      residual=~sample_id:ar1h(yearf),
+                      data=data.phenotype.final, maxiter = 100, workspace = "1000mb")
+  
+model_red_taxayear<-asreml(fixed=get(j)~ taxa + period + taxa_period + taxa:NO_ORIGI + period:(taxa:NO_ORIGI),
+                      random=~ period:yearf + NO_BLOC + yearf:NO_BLOC + (taxa:NO_ORIGI):yearf,
+                      residual=~sample_id:ar1h(yearf),
+                      data=data.phenotype.final, maxiter = 100, workspace = "1000mb")
+  
+model_red_origiyear<-asreml(fixed=get(j)~ taxa + period + taxa_period + taxa:NO_ORIGI + period:(taxa:NO_ORIGI),
+                      random=~ period:yearf + NO_BLOC + yearf:NO_BLOC + taxa:yearf,
+                      residual=~sample_id:ar1h(yearf),
+                      data=data.phenotype.final, maxiter = 100, workspace = "1000mb")
+  
+
+# Wald on fixed effects
+W_total <- wald(model_total)
+
+  
+# Likelihood ratio tests on random effects
+lrt_year <- lrt.asreml(model_total,model_red_yearf)
+lrt_bloc <- lrt.asreml(model_total,model_red_bloc)
+lrt_yearbloc <- lrt.asreml(model_total,model_red_yearbloc)
+lrt_taxayear <- lrt.asreml(model_total,model_red_taxayear)
+lrt_famyear <- lrt.asreml(model_total,model_red_origiyear)
+
+  
+# Making posthoc estimates for group comparisons if group effect is significant
+ # Using multiple_comparisons() function from biometryassist package
+transfo <- "sqrt"
+posthoc <- multiple_comparisons(model.obj = model_total, classify = "taxa_period", trans=transfo,
+                                   descending = TRUE, decimals = 5, present = c("taxa","period","taxa_period","NO_BLOC","NO_ORIGI","yearf"))
+  
+ # Extracting the results 
+posthoc <- separate(posthoc, col= taxa_period, into = c("taxa","period"), sep = ":" )
+predP1 <- filter(posthoc, period =="early")
+predP2 <- filter(posthoc, period =="late")
+
+```
+
+
+## 2.  The second part of this script is a sample of the single measure analysis of CS (climate-sensitivity) and resilience traits (principal results in tables 3,4 and of the above cited article)
+
+# 2.1. Loading the data file
+```{r}
+PhenoMesuresUniques <- read.csv("sample.phenotype.data.unique.csv")
+```
+
+# Description of the variables
+# sample_id, taxa, NO_ORIGI, NO_BLOC : same as in the repeated measures data file (ID, group, family and block numbers)
+# Hauteur_** : Height at age ** after outplanting
+# DHP_** : Diameter at breast height at age ** after outplanting
+# Columns 10-26 are the individual CS (climate-sensitivity) traits, in the following format : XX_YY_ZZ or XX_Prev_YY_ZZ, where XX is the wood anatomy trait, YY is the climate variable, and ZZ is the season associated (ex. sum = summer, aut = autumn, etc.). Prev refers to the previous season, in a carry-over fashion.
+# Columns 27-71 are the individual resilience components, in the following format : XX_Y_Y_det_ZZ, or XX_Y_Y_Y_det_ZZ, where XX is the resilience index (Resistance, Resilience or Recovery), YYY is the name of the wood anatomy trait and ZZ is the year of the peak (or drop) of the wood anatomy trait with regards to the climate stress assessed.
+
+
+
+# 2.2. Setting factor variables in the correct data type
+
+```{r}
+PhenoMesuresUniques$NO_BLOC <- as.factor(PhenoMesuresUniques$NO_BLOC)
+PhenoMesuresUniques$NO_ORIGI <- as.factor(PhenoMesuresUniques$NO_ORIGI)
+PhenoMesuresUniques$taxa <- as.factor(PhenoMesuresUniques$taxa)
+```
+
+# 2.3. Data transformations where needed to meet statistical assumptions
+# Here, an example with variable "Resistance_BAI_lw_det_2011" that needed a log transformation
+```{r}
+PhenoMesuresUniques$log_Resistance_BAI_lw_det_2011 <- log(data.phenotype.final$Resistance_BAI_lw_det_2011)
+```
+
+# 2.3. Run the linear models, again with the example of (now log transformed) Resistance_BAI_lw_det_2011 variable
+#Similarly as with the repeated measures model, this structure could be fit into a loop to automate this part for more than one trait at once
+
+```{r}
+# Select the variable of your choice
+j <- log_Resistance_BAI_lw_det_2011
+  
+print(paste0(j))
+  
+data.for.model <- select(PhenoMesuresUniques, NO_BLOC,NO_ORIGI,taxa,j)
+data.for.model <- na.exclude(data.for.model)
+  
+
+# Full model
+model_total <- asreml(fixed=get(j)~taxa + NO_BLOC,
+                      random=~taxa:NO_ORIGI + NO_ORIGI:NO_BLOC,
+                      data=data.for.model, maxiter = 100, workspace = "1000mb")
+
+# Reduced model without "taxa:NO_ORIGI" random effect
+model_redorigi <- asreml(fixed=get(j)~taxa + NO_BLOC,
+                         random=~NO_ORIGI:NO_BLOC,
+                         data=data.for.model, maxiter = 100, workspace = "1000mb")
+  
+# Extraction of Wald results of fixed effects
+W_total <- wald(model_total)
+
+# Likelihood ratio test for the family (NO_ORIGI) random effect
+lrt_fam <- lrt.asreml(model_total,model_redorigi)
+
+  
+# Post-hoc testing on the full model
+transfo <- "log" # here for example with a log transformation
+posthoc <-multiple_comparisons(model.obj = model_total, classify = "taxa", trans = transfo, descending = TRUE, decimals = 8)
+  
+pred.epn <- filter(posthoc, taxa=="EPN")
+pred.epnxepr <- filter(posthoc, taxa=="EPNxEPR")
+pred.eprxepn <- filter(posthoc, taxa=="EPRxEPN")
+pred.epr <- filter(posthoc, taxa=="EPR")
+```
