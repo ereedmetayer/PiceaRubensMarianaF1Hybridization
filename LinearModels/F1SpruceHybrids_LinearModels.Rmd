@@ -8,7 +8,7 @@ output: html_document
 ### Introduction
 
 # This script is associated with the article
-# "Spruce hybrids show superior growth and intermediate response to climate variations compared to their ecologically divergent parental species"
+# "Spruce hybrids show superior lifespan growth but intermediate response to climate variations compared to their ecologically divergent parental species"
 # And runs linear mixed models with the software package ASREML-R
 
 # Authors : Edouard Reed-Metayer, Claire Depardieu, Patrick Lenz, Jean Bousquet, Martin Perron
@@ -37,7 +37,7 @@ library(dplyr)
 # 1.1. Reading the data file
 
 ```{r}
-data.phenotype.final <- read.csv("sample.phenotype.data.repeated.csv")
+data.phenotype.final <- read.csv("phenotype.data.repeated.csv")
 ```
 
 # Description of the variables
@@ -144,11 +144,11 @@ predP2 <- filter(posthoc, period =="late")
 ```
 
 
-## 2.  The second part of this script is a sample of the single measure analysis of CS (climate-sensitivity) and resilience traits (principal results in tables 3,4 and of the above cited article)
+## 2.  The second part of this script is a sample of the single measure analysis of dendrometric (heigth, DBH), CS (climate-sensitivity) and resilience traits (principal results in tables 3,4 and of the above cited article)
 
 # 2.1. Loading the data file
 ```{r}
-PhenoMesuresUniques <- read.csv("sample.phenotype.data.unique.csv")
+PhenoMesuresUniques <- read.csv("phenotype.data.unique.csv")
 ```
 
 # Description of the variables
